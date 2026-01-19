@@ -446,17 +446,481 @@ function testConnection() {
     });
 }
 
-// Load data on page load
-document.addEventListener("DOMContentLoaded", function() {
-  loadFinancialSummary();
-  loadActivityLog();
-  loadTrialBalance();
-});
+// ==================== ACCOUNTANT: JOURNAL ENTRY FUNCTIONS ====================
 
-// Close modal when clicking outside
-window.onclick = function(event) {
-  const modal = document.getElementById("editModal");
-  if (event.target === modal) {
-    closeEditModal();
+function createJournalEntry() {
+  const period = document.getElementById("journalPeriod").value;
+  const account = document.getElementById("journalAccount").value;
+  const debit = parseFloat(document.getElementById("journalDebit").value) || 0;
+  const credit = parseFloat(document.getElementById("journalCredit").value) || 0;
+  const description = document.getElementById("journalDescription").value;
+  const comments = document.getElementById("journalComments").value;
+
+  if (!period || !account) {
+    document.getElementById("journalError").textContent = "Please fill in required fields (Period, Account)";
+    return;
   }
+
+  if (debit === 0 && credit === 0) {
+    document.getElementById("journalError").textContent = "Either debit or credit must be greater than 0";
+    return;
+  }
+
+  const payload = {
+    period: period.replace("-", "-"),
+    account: account.trim(),
+    debit,
+    credit,
+    description: description || "Manual entry",
+    comments,
+    status: "DRAFT"
+  };
+
+  fetch(`${API_URL}/journals`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "user-id": "accountant-001" // TODO: Get from session
+    },
+    body: JSON.stringify(payload)
+  })
+    .then(res => res.json())
+    .then(data => {
+      document.getElementById("journalSuccess").textContent = "✓ Journal entry saved as draft!";
+      document.getElementById("journalError").textContent = "";
+      clearJournalForm();
+      loadDraftJournalEntries();
+      setTimeout(() => {
+        document.getElementById("journalSuccess").textContent = "";
+      }, 3000);
+    })
+    .catch(err => {
+      console.error(err);
+      document.getElementById("journalError").textContent = "Error creating journal entry";
+    });
+}
+
+function submitJournalEntry() {
+  const period = document.getElementById("journalPeriod").value;
+  const account = document.getElementById("journalAccount").value;
+  const debit = parseFloat(document.getElementById("journalDebit").value) || 0;
+  const credit = parseFloat(document.getElementById("journalCredit").value) || 0;
+  const description = document.getElementById("journalDescription").value;
+  const comments = document.getElementById("journalComments").value;
+
+  if (!period || !account || (debit === 0 && credit === 0)) {
+    document.getElementById("journalError").textContent = "Please fill in all required fields";
+    return;
+  }
+
+  // First create the entry
+  const payload = {
+    period: period.replace("-", "-"),
+    account: account.trim(),
+    debit,
+    credit,
+    description: description || "Manual entry",
+    comments,
+    status: "SUBMITTED"
+  };
+
+  fetch(`${API_URL}/journals`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "user-id": "accountant-001"
+    },
+    body: JSON.stringify(payload)
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.entry && data.entry._id) {
+        // Submit the entry
+        return fetch(`${API_URL}/journals/${data.entry._id}/submit`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "user-id": "accountant-001"
+          }
+        });
+      }
+      throw new Error("Failed to create entry");
+    })
+    .then(res => res.json())
+    .then(data => {
+      document.getElementById("journalSuccess").textContent = "✓ Journal entry submitted for approval!";
+      document.getElementById("journalError").textContent = "";
+      clearJournalForm();
+      loadDraftJournalEntries();
+      loadSubmittedJournalEntries();
+      setTimeout(() => {
+        document.getElementById("journalSuccess").textContent = "";
+      }, 3000);
+    })
+    .catch(err => {
+      console.error(err);
+      document.getElementById("journalError").textContent = "Error submitting journal entry";
+    });
+}
+
+function clearJournalForm() {
+  document.getElementById("journalPeriod").value = "";
+  document.getElementById("journalAccount").value = "";
+  document.getElementById("journalDebit").value = "";
+  document.getElementById("journalCredit").value = "";
+  document.getElementById("journalDescription").value = "";
+  document.getElementById("journalComments").value = "";
+}
+
+function loadDraftJournalEntries() {
+  fetch(`${API_URL}/journals/accountant/drafts`, {
+    headers: {
+      "user-id": "accountant-001"
+    }
+  })
+    .then(res => res.json())
+    .then(data => {
+      const tbody = document.getElementById("draftJournalBody");
+      const table = document.getElementById("draftJournalTable");
+      const message = document.getElementById("draftJournalMessage");
+
+      if (!Array.isArray(data.entries) || data.entries.length === 0) {
+        table.style.display = "none";
+        message.textContent = "No draft entries found";
+        return;
+      }
+
+      table.style.display = "table";
+      message.textContent = "";
+      tbody.innerHTML = "";
+
+      data.entries.forEach(entry => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${entry.period || "N/A"}</td>
+          <td>${entry.account || entry.lines?.[0]?.account || "N/A"}</td>
+          <td>$${(entry.debit || 0).toFixed(2)}</td>
+          <td>$${(entry.credit || 0).toFixed(2)}</td>
+          <td><span style="background:#fff3e0;color:#f57c00;padding:3px 8px;border-radius:3px;font-weight:600;">DRAFT</span></td>
+          <td>
+            <button class="btn btn-primary btn-sm" onclick="editJournalEntry('${entry._id}')" style="margin-right: 5px;"><i class="fas fa-edit"></i> Edit</button>
+            <button class="btn btn-success btn-sm" onclick="submitJournalEntryById('${entry._id}')" style="margin-right: 5px;"><i class="fas fa-send"></i> Submit</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteJournalEntry('${entry._id}')"><i class="fas fa-trash"></i> Delete</button>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    })
+    .catch(err => {
+      console.error(err);
+      document.getElementById("draftJournalMessage").textContent = "Error loading draft entries";
+    });
+}
+
+function loadSubmittedJournalEntries() {
+  fetch(`${API_URL}/journals/accountant/submitted`)
+    .then(res => res.json())
+    .then(data => {
+      const tbody = document.getElementById("submittedJournalBody");
+      const table = document.getElementById("submittedJournalTable");
+      const message = document.getElementById("submittedJournalMessage");
+
+      if (!Array.isArray(data.entries) || data.entries.length === 0) {
+        table.style.display = "none";
+        message.textContent = "No submitted entries found";
+        return;
+      }
+
+      table.style.display = "table";
+      message.textContent = "";
+      tbody.innerHTML = "";
+
+      data.entries.forEach(entry => {
+        const submittedDate = new Date(entry.submittedAt).toLocaleDateString();
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${entry.period || "N/A"}</td>
+          <td>${entry.account || entry.lines?.[0]?.account || "N/A"}</td>
+          <td>$${(entry.debit || 0).toFixed(2)}</td>
+          <td>$${(entry.credit || 0).toFixed(2)}</td>
+          <td><span style="background:#e3f2fd;color:#1976d2;padding:3px 8px;border-radius:3px;font-weight:600;">SUBMITTED</span></td>
+          <td>${submittedDate}</td>
+          <td>
+            <button class="btn btn-primary btn-sm" onclick="viewJournalEntry('${entry._id}')"><i class="fas fa-eye"></i> View</button>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    })
+    .catch(err => {
+      console.error(err);
+      document.getElementById("submittedJournalMessage").textContent = "Error loading submitted entries";
+    });
+}
+
+function submitJournalEntryById(entryId) {
+  if (!confirm("Submit this journal entry for approval?")) {
+    return;
+  }
+
+  fetch(`${API_URL}/journals/${entryId}/submit`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "user-id": "accountant-001"
+    }
+  })
+    .then(res => res.json())
+    .then(data => {
+      alert("Journal entry submitted for approval!");
+      loadDraftJournalEntries();
+      loadSubmittedJournalEntries();
+    })
+    .catch(err => {
+      console.error(err);
+      alert("Error submitting journal entry");
+    });
+}
+
+function deleteJournalEntry(entryId) {
+  if (!confirm("Delete this journal entry? This action cannot be undone.")) {
+    return;
+  }
+
+  fetch(`${API_URL}/journals/${entryId}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" }
+  })
+    .then(res => res.json())
+    .then(data => {
+      alert("Journal entry deleted successfully!");
+      loadDraftJournalEntries();
+    })
+    .catch(err => {
+      console.error(err);
+      alert("Error deleting journal entry");
+    });
+}
+
+function viewJournalEntry(entryId) {
+  fetch(`${API_URL}/journals/${entryId}/with-attachments`)
+    .then(res => res.json())
+    .then(data => {
+      alert(`Journal Entry Details:\n\nPeriod: ${data.period}\nAccount: ${data.account}\nDebit: $${data.debit}\nCredit: $${data.credit}\nStatus: ${data.status}\nDescription: ${data.description}`);
+    })
+    .catch(err => {
+      console.error(err);
+      alert("Error loading journal entry");
+    });
+}
+
+// ==================== ACCOUNTANT: BANK RECONCILIATION FUNCTIONS ====================
+
+function createBankReconciliation() {
+  const period = document.getElementById("reconPeriod").value;
+  const bankBalance = parseFloat(document.getElementById("reconBankBalance").value) || 0;
+  const bookBalance = parseFloat(document.getElementById("reconBookBalance").value) || 0;
+  const bankDate = document.getElementById("reconBankDate").value;
+  const notes = document.getElementById("reconNotes").value;
+
+  if (!period || bankBalance === 0 || bookBalance === 0) {
+    document.getElementById("reconError").textContent = "Please fill in all required fields";
+    return;
+  }
+
+  const payload = {
+    period: period.replace("-", "-"),
+    bankBalance,
+    bookBalance,
+    bankDate: bankDate || new Date().toISOString(),
+    bankFileName: "Bank Statement",
+    notes
+  };
+
+  fetch(`${API_URL}/reconciliations`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "user-id": "accountant-001"
+    },
+    body: JSON.stringify(payload)
+  })
+    .then(res => res.json())
+    .then(data => {
+      document.getElementById("reconSuccess").textContent = "✓ Bank reconciliation created!";
+      document.getElementById("reconError").textContent = "";
+      clearReconciliationForm();
+      loadReconciliations();
+      showDiscrepanciesSection(data.reconciliation._id, bankBalance, bookBalance);
+      setTimeout(() => {
+        document.getElementById("reconSuccess").textContent = "";
+      }, 3000);
+    })
+    .catch(err => {
+      console.error(err);
+      document.getElementById("reconError").textContent = "Error creating reconciliation";
+    });
+}
+
+function clearReconciliationForm() {
+  document.getElementById("reconPeriod").value = "";
+  document.getElementById("reconBankBalance").value = "";
+  document.getElementById("reconBookBalance").value = "";
+  document.getElementById("reconBankDate").value = "";
+  document.getElementById("reconNotes").value = "";
+}
+
+function loadReconciliations() {
+  fetch(`${API_URL}/reconciliations/drafts/list`)
+    .then(res => res.json())
+    .then(data => {
+      const tbody = document.getElementById("reconciliationBody");
+      const table = document.getElementById("reconciliationTable");
+      const message = document.getElementById("reconciliationMessage");
+
+      if (!Array.isArray(data.reconciliations) || data.reconciliations.length === 0) {
+        table.style.display = "none";
+        message.textContent = "No reconciliations found";
+        return;
+      }
+
+      table.style.display = "table";
+      message.textContent = "";
+      tbody.innerHTML = "";
+
+      data.reconciliations.forEach(recon => {
+        const difference = (recon.bankStatement?.balance || 0) - (recon.bookBalance || 0);
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${recon.period || "N/A"}</td>
+          <td>$${(recon.bankStatement?.balance || 0).toFixed(2)}</td>
+          <td>$${(recon.bookBalance || 0).toFixed(2)}</td>
+          <td style="color: ${Math.abs(difference) < 0.01 ? 'green' : 'red'};">$${difference.toFixed(2)}</td>
+          <td><span style="background:#fff3e0;color:#f57c00;padding:3px 8px;border-radius:3px;font-weight:600;">DRAFT</span></td>
+          <td>
+            <button class="btn btn-primary btn-sm" onclick="viewReconciliation('${recon._id}')" style="margin-right: 5px;"><i class="fas fa-eye"></i> View</button>
+            <button class="btn btn-warning btn-sm" onclick="addDiscrepancyUI('${recon._id}')" style="margin-right: 5px;"><i class="fas fa-plus"></i> Add Discrepancy</button>
+            <button class="btn btn-success btn-sm" onclick="submitReconciliation('${recon._id}')"><i class="fas fa-send"></i> Submit</button>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    })
+    .catch(err => {
+      console.error(err);
+      document.getElementById("reconciliationMessage").textContent = "Error loading reconciliations";
+    });
+}
+
+function viewReconciliation(reconId) {
+  fetch(`${API_URL}/reconciliations/${reconId}/with-attachments`)
+    .then(res => res.json())
+    .then(data => {
+      const difference = (data.bankStatement?.balance || 0) - (data.bookBalance || 0);
+      const reconciled = Math.abs(difference) < 0.01;
+      alert(`Bank Reconciliation Details:\n\nPeriod: ${data.period}\nBank Balance: $${(data.bankStatement?.balance || 0).toFixed(2)}\nBook Balance: $${(data.bookBalance || 0).toFixed(2)}\nDifference: $${difference.toFixed(2)}\nReconciled: ${reconciled ? 'Yes' : 'No'}\nDiscrepancies: ${data.discrepancies.length}`);
+    })
+    .catch(err => {
+      console.error(err);
+      alert("Error loading reconciliation");
+    });
+}
+
+function addDiscrepancyUI(reconId) {
+  document.getElementById("discrepanciesSection").style.display = "block";
+  document.getElementById("discrepanciesSection").dataset.reconId = reconId;
+}
+
+function addDiscrepancy() {
+  const reconId = document.getElementById("discrepanciesSection").dataset.reconId;
+  const type = document.getElementById("discrepancyType").value;
+  const description = document.getElementById("discrepancyDescription").value;
+  const amount = parseFloat(document.getElementById("discrepancyAmount").value) || 0;
+
+  if (!type || !description || amount === 0) {
+    document.getElementById("discrepancyError").textContent = "Please fill in all required fields";
+    return;
+  }
+
+  const payload = {
+    type,
+    description,
+    amount
+  };
+
+  fetch(`${API_URL}/reconciliations/${reconId}/discrepancies`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  })
+    .then(res => res.json())
+    .then(data => {
+      document.getElementById("discrepancySuccess").textContent = "✓ Discrepancy added!";
+      document.getElementById("discrepancyError").textContent = "";
+      document.getElementById("discrepancyType").value = "";
+      document.getElementById("discrepancyDescription").value = "";
+      document.getElementById("discrepancyAmount").value = "";
+      setTimeout(() => {
+        document.getElementById("discrepancySuccess").textContent = "";
+      }, 2000);
+    })
+    .catch(err => {
+      console.error(err);
+      document.getElementById("discrepancyError").textContent = "Error adding discrepancy";
+    });
+}
+
+function submitReconciliation(reconId) {
+  if (!confirm("Submit this reconciliation for approval? Make sure all discrepancies are resolved.")) {
+    return;
+  }
+
+  fetch(`${API_URL}/reconciliations/${reconId}/submit`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "user-id": "accountant-001"
+    }
+  })
+    .then(res => res.json())
+    .then(data => {
+      alert("Bank reconciliation submitted for approval!");
+      loadReconciliations();
+      document.getElementById("discrepanciesSection").style.display = "none";
+    })
+    .catch(err => {
+      console.error(err);
+      alert("Error submitting reconciliation");
+    });
+}
+
+function showPage(page) {
+  document.querySelectorAll('.page-content').forEach(content => {
+    content.classList.remove('active');
+  });
+  const pageContent = document.getElementById(`${page}Content`);
+  if (pageContent) {
+    pageContent.classList.add('active');
+  }
+  
+  const titles = {
+    'dashboard': 'Finance Dashboard',
+    'journal': 'Journal Entries',
+    'reconciliation': 'Bank Reconciliation',
+    'invoices': 'Invoice Management',
+    'reports': 'Financial Reports',
+    'audit': 'Activity Log',
+    'settings': 'System Settings'
+  };
+  document.getElementById('pageTitle').textContent = titles[page] || 'Finance Module';
+
+  if (page === 'journal') {
+    loadDraftJournalEntries();
+    loadSubmittedJournalEntries();
+  }
+  if (page === 'reconciliation') {
+    loadReconciliations();
+  }
+  if (page === 'invoices') loadInvoices();
+  if (page === 'audit') loadActivityLog();
 }

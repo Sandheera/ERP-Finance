@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+    <style>
+        body { font-family: Arial; margin: 20px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        pre { background: #f0f0f0; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Accountant Module - API Test</h1>
+    
+    <h2>Test Results:</h2>
+    <div id="results"></div>
+    
+    <script>
+        const results = [];
+        
+        async function testAPI(endpoint, method = 'GET', body = null) {
+            try {
+                const options = {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'user-id': 'accountant-001'
+                    }
+                };
+                
+                if (body) {
+                    options.body = JSON.stringify(body);
+                }
+                
+                const response = await fetch(`http://localhost:5000/api${endpoint}`, options);
+                const data = await response.json();
+                
+                results.push({
+                    endpoint,
+                    method,
+                    status: response.status,
+                    success: response.ok,
+                    message: response.ok ? 'OK' : 'Failed',
+                    data: data
+                });
+                
+                return response.ok;
+            } catch (error) {
+                results.push({
+                    endpoint,
+                    method,
+                    success: false,
+                    error: error.message
+                });
+                return false;
+            }
+        }
+        
+        async function runTests() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<p class="info">Testing API endpoints...</p>';
+            
+            // Test 1: Get draft entries
+            await testAPI('/journals/accountant/drafts');
+            
+            // Test 2: Get submitted entries
+            await testAPI('/journals/accountant/submitted');
+            
+            // Test 3: Get all entries
+            await testAPI('/journals');
+            
+            // Test 4: Get draft reconciliations
+            await testAPI('/reconciliations/drafts/list');
+            
+            // Display results
+            let html = '<h3>Test Summary</h3>';
+            const passed = results.filter(r => r.success).length;
+            const total = results.length;
+            
+            html += `<p><strong>${passed}/${total} tests passed</strong></p>`;
+            
+            results.forEach(result => {
+                const className = result.success ? 'success' : 'error';
+                html += `
+                    <div class="${className}">
+                        <strong>${result.method} ${result.endpoint}</strong>
+                        <br/>Status: ${result.status || 'Connection Error'}
+                        <br/>Message: ${result.message || result.error}
+                        ${result.data ? `<br/><pre>${JSON.stringify(result.data, null, 2)}</pre>` : ''}
+                    </div>
+                    <br/>
+                `;
+            });
+            
+            resultsDiv.innerHTML = html;
+        }
+        
+        // Run tests on page load
+        window.addEventListener('load', runTests);
+    </script>
+</body>
+</html>

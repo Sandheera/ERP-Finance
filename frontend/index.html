@@ -560,6 +560,8 @@
         </div>
         <ul class="navbar-menu">
             <li><a href="#" class="menu-link active" data-page="dashboard"><i class="fas fa-home"></i> Dashboard</a></li>
+            <li><a href="#" class="menu-link" data-page="journal"><i class="fas fa-book"></i> Journal Entries</a></li>
+            <li><a href="#" class="menu-link" data-page="reconciliation"><i class="fas fa-calculator"></i> Bank Reconciliation</a></li>
             <li><a href="#" class="menu-link" data-page="invoices"><i class="fas fa-file-invoice-dollar"></i> Invoices</a></li>
             <li><a href="#" class="menu-link" data-page="reports"><i class="fas fa-chart-bar"></i> Reports</a></li>
             <li><a href="#" class="menu-link" data-page="audit"><i class="fas fa-history"></i> Audit Log</a></li>
@@ -582,6 +584,189 @@
         </div>
 
         <div class="content-area">
+            <!-- Journal Entries (Accountant) -->
+            <div id="journalContent" class="page-content">
+                <div class="module-section">
+                    <div class="section-header">
+                        <div class="section-title"><i class="fas fa-plus-circle"></i> Create Journal Entry</div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Period (YYYY-MM)</label>
+                            <input id="journalPeriod" class="form-control" type="month" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Account</label>
+                            <input id="journalAccount" class="form-control" placeholder="e.g., 1000-Cash" />
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Debit ($)</label>
+                            <input id="journalDebit" class="form-control" type="number" placeholder="0.00" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Credit ($)</label>
+                            <input id="journalCredit" class="form-control" type="number" placeholder="0.00" />
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Description</label>
+                        <textarea id="journalDescription" class="form-control" rows="3" placeholder="Enter entry description..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Comments</label>
+                        <textarea id="journalComments" class="form-control" rows="2" placeholder="Additional comments..."></textarea>
+                    </div>
+                    <button class="btn btn-primary" onclick="createJournalEntry()"><i class="fas fa-save"></i> Save Draft</button>
+                    <button class="btn btn-success" onclick="submitJournalEntry()"><i class="fas fa-send"></i> Submit for Approval</button>
+                    <div id="journalSuccess" style="color:green;margin-top:10px;"></div>
+                    <div id="journalError" style="color:red;margin-top:10px;"></div>
+                </div>
+
+                <div class="module-section">
+                    <div class="section-header">
+                        <div class="section-title"><i class="fas fa-list"></i> Draft Journal Entries</div>
+                        <div class="section-actions">
+                            <button class="btn btn-primary btn-sm" onclick="loadDraftJournalEntries()"><i class="fas fa-redo"></i> Refresh</button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table id="draftJournalTable" style="display:none;">
+                            <thead>
+                                <tr>
+                                    <th>Period</th>
+                                    <th>Account</th>
+                                    <th>Debit</th>
+                                    <th>Credit</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="draftJournalBody"></tbody>
+                        </table>
+                        <div id="draftJournalMessage" class="empty-state">No draft entries. Click "Refresh" to load.</div>
+                    </div>
+                </div>
+
+                <div class="module-section">
+                    <div class="section-header">
+                        <div class="section-title"><i class="fas fa-check-circle"></i> Submitted Journal Entries</div>
+                        <div class="section-actions">
+                            <button class="btn btn-primary btn-sm" onclick="loadSubmittedJournalEntries()"><i class="fas fa-redo"></i> Refresh</button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table id="submittedJournalTable" style="display:none;">
+                            <thead>
+                                <tr>
+                                    <th>Period</th>
+                                    <th>Account</th>
+                                    <th>Debit</th>
+                                    <th>Credit</th>
+                                    <th>Status</th>
+                                    <th>Submitted At</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="submittedJournalBody"></tbody>
+                        </table>
+                        <div id="submittedJournalMessage" class="empty-state">No submitted entries. Click "Refresh" to load.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bank Reconciliation (Accountant) -->
+            <div id="reconciliationContent" class="page-content">
+                <div class="module-section">
+                    <div class="section-header">
+                        <div class="section-title"><i class="fas fa-plus-circle"></i> Create Bank Reconciliation</div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Period (YYYY-MM)</label>
+                            <input id="reconPeriod" class="form-control" type="month" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Bank Balance ($)</label>
+                            <input id="reconBankBalance" class="form-control" type="number" placeholder="0.00" />
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Book Balance ($)</label>
+                            <input id="reconBookBalance" class="form-control" type="number" placeholder="0.00" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Bank Statement Date</label>
+                            <input id="reconBankDate" class="form-control" type="date" />
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Notes</label>
+                        <textarea id="reconNotes" class="form-control" rows="3" placeholder="Reconciliation notes..."></textarea>
+                    </div>
+                    <button class="btn btn-primary" onclick="createBankReconciliation()"><i class="fas fa-save"></i> Create Reconciliation</button>
+                    <div id="reconSuccess" style="color:green;margin-top:10px;"></div>
+                    <div id="reconError" style="color:red;margin-top:10px;"></div>
+                </div>
+
+                <div class="module-section">
+                    <div class="section-header">
+                        <div class="section-title"><i class="fas fa-list"></i> Reconciliations</div>
+                        <div class="section-actions">
+                            <button class="btn btn-primary btn-sm" onclick="loadReconciliations()"><i class="fas fa-redo"></i> Refresh</button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table id="reconciliationTable" style="display:none;">
+                            <thead>
+                                <tr>
+                                    <th>Period</th>
+                                    <th>Bank Balance</th>
+                                    <th>Book Balance</th>
+                                    <th>Difference</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reconciliationBody"></tbody>
+                        </table>
+                        <div id="reconciliationMessage" class="empty-state">No reconciliations. Click "Refresh" to load.</div>
+                    </div>
+                </div>
+
+                <div class="module-section" id="discrepanciesSection" style="display:none;">
+                    <div class="section-header">
+                        <div class="section-title"><i class="fas fa-exclamation-triangle"></i> Discrepancies</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Discrepancy Type</label>
+                        <select id="discrepancyType" class="form-control">
+                            <option value="">Select type...</option>
+                            <option value="OUTSTANDING_CHECK">Outstanding Check</option>
+                            <option value="UNDEPOSITED_FUNDS">Undeposited Funds</option>
+                            <option value="BANK_CHARGE">Bank Charge</option>
+                            <option value="INTEREST">Interest</option>
+                            <option value="ERROR">Error</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Description</label>
+                        <input id="discrepancyDescription" class="form-control" placeholder="Describe the discrepancy..." />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Amount ($)</label>
+                        <input id="discrepancyAmount" class="form-control" type="number" placeholder="0.00" />
+                    </div>
+                    <button class="btn btn-primary" onclick="addDiscrepancy()"><i class="fas fa-plus"></i> Add Discrepancy</button>
+                    <div id="discrepancySuccess" style="color:green;margin-top:10px;"></div>
+                    <div id="discrepancyError" style="color:red;margin-top:10px;"></div>
+                    
+                    <div id="discrepanciesList" style="margin-top:20px;"></div>
+                </div>
+            </div>
+
             <!-- Dashboard -->
             <div id="dashboardContent" class="page-content active">
                 <div class="cards-container">

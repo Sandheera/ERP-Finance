@@ -9,7 +9,42 @@ const journalSchema = new mongoose.Schema(
         debit: Number,
         credit: Number
       }
-    ]
+    ],
+    period: {
+      type: String,
+      match: /^\d{4}-\d{2}$/
+    },
+    account: String,
+    debit: Number,
+    credit: Number,
+    invoiceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Invoice"
+    },
+    status: {
+      type: String,
+      enum: ["DRAFT", "SUBMITTED", "APPROVED", "POSTED"],
+      default: "DRAFT",
+      index: true
+    },
+    submittedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User"
+    },
+    submittedAt: Date,
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User"
+    },
+    approvedAt: Date,
+    attachments: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "DocumentAttachment"
+      }
+    ],
+    comments: String,
+    reviewerComments: String
   },
   { timestamps: true }
 );
