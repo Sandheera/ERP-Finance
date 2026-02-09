@@ -467,13 +467,12 @@ function createJournalEntry() {
   }
 
   const payload = {
-    period: period.replace("-", "-"),
+    period: period,
     account: account.trim(),
     debit,
     credit,
     description: description || "Manual entry",
-    comments,
-    status: "DRAFT"
+    comments
   };
 
   fetch(`${API_URL}/journals`, {
@@ -515,13 +514,12 @@ function submitJournalEntry() {
 
   // First create the entry
   const payload = {
-    period: period.replace("-", "-"),
+    period: period,
     account: account.trim(),
     debit,
     credit,
     description: description || "Manual entry",
-    comments,
-    status: "SUBMITTED"
+    comments
   };
 
   fetch(`${API_URL}/journals`, {
@@ -618,7 +616,11 @@ function loadDraftJournalEntries() {
 }
 
 function loadSubmittedJournalEntries() {
-  fetch(`${API_URL}/journals/accountant/submitted`)
+  fetch(`${API_URL}/journals/accountant/submitted`, {
+    headers: {
+      "user-id": "accountant-001"
+    }
+  })
     .then(res => res.json())
     .then(data => {
       const tbody = document.getElementById("submittedJournalBody");
@@ -689,7 +691,10 @@ function deleteJournalEntry(entryId) {
 
   fetch(`${API_URL}/journals/${entryId}`, {
     method: "DELETE",
-    headers: { "Content-Type": "application/json" }
+    headers: { 
+      "Content-Type": "application/json",
+      "user-id": "accountant-001"
+    }
   })
     .then(res => res.json())
     .then(data => {
@@ -703,7 +708,11 @@ function deleteJournalEntry(entryId) {
 }
 
 function viewJournalEntry(entryId) {
-  fetch(`${API_URL}/journals/${entryId}/with-attachments`)
+  fetch(`${API_URL}/journals/${entryId}/with-attachments`, {
+    headers: {
+      "user-id": "accountant-001"
+    }
+  })
     .then(res => res.json())
     .then(data => {
       alert(`Journal Entry Details:\n\nPeriod: ${data.period}\nAccount: ${data.account}\nDebit: $${data.debit}\nCredit: $${data.credit}\nStatus: ${data.status}\nDescription: ${data.description}`);
@@ -832,7 +841,13 @@ function addDiscrepancyUI(reconId) {
 }
 
 function addDiscrepancy() {
-  const reconId = document.getElementById("discrepanciesSection").dataset.reconId;
+  const reconId = window.currentReconciliationId;
+  
+  if (!reconId) {
+    alert("Error: No reconciliation selected");
+    return;
+  }
+  
   const type = document.getElementById("discrepancyType").value;
   const description = document.getElementById("discrepancyDescription").value;
   const amount = parseFloat(document.getElementById("discrepancyAmount").value) || 0;
@@ -850,7 +865,10 @@ function addDiscrepancy() {
 
   fetch(`${API_URL}/reconciliations/${reconId}/discrepancies`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { 
+      "Content-Type": "application/json",
+      "user-id": "accountant-001"
+    },
     body: JSON.stringify(payload)
   })
     .then(res => res.json())
@@ -871,11 +889,19 @@ function addDiscrepancy() {
 }
 
 function submitReconciliation(reconId) {
+  // Use parameter or global variable
+  const id = reconId || window.currentReconciliationId;
+  
+  if (!id) {
+    alert("Error: No reconciliation selected");
+    return;
+  }
+  
   if (!confirm("Submit this reconciliation for approval? Make sure all discrepancies are resolved.")) {
     return;
   }
 
-  fetch(`${API_URL}/reconciliations/${reconId}/submit`, {
+  fetch(`${API_URL}/reconciliations/${id}/submit`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -887,6 +913,7 @@ function submitReconciliation(reconId) {
       alert("Bank reconciliation submitted for approval!");
       loadReconciliations();
       document.getElementById("discrepanciesSection").style.display = "none";
+      window.currentReconciliationId = null;
     })
     .catch(err => {
       console.error(err);
@@ -922,5 +949,281 @@ function showPage(page) {
     loadReconciliations();
   }
   if (page === 'invoices') loadInvoices();
+  if (page === 'dashboard') {
+    loadDashboardKPIs();
+    loadPendingApprovals();
+  }
   if (page === 'audit') loadActivityLog();
+}
+
+// ==================== FINANCE MANAGER: DASHBOARD KPIs ====================
+function loadDashboardKPIs() {
+  fetch(`${API_URL}/approvals/statistics`, {
+    headers: {
+      "user-id": "manager-001" // TODO: Get from session
+    }
+  })
+    .then(res => res.json())
+    .then(data => {
+      const kpiContainer = document.getElementById("kpiMetrics");
+      if (!kpiContainer) return;
+      
+      const { journalEntries, invoices, metrics } = data;
+      
+      // Create KPI cards
+      const kpiHtml = `
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px;">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+            <div style="font-size: 0.9rem; opacity: 0.9;">Pending Approvals</div>
+            <div style="font-size: 2.5rem; font-weight: bold; margin: 10px 0;">${metrics.pendingApprovals}</div>
+            <div style="font-size: 0.85rem; opacity: 0.8;">Journal entries awaiting review</div>
+          </div>
+          
+          <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+            <div style="font-size: 0.9rem; opacity: 0.9;">Pending Amount</div>
+            <div style="font-size: 2.5rem; font-weight: bold; margin: 10px 0;">$${metrics.pendingAmount.toLocaleString('en-US', {minimumFractionDigits: 2})}</div>
+            <div style="font-size: 0.85rem; opacity: 0.8;">Total value pending review</div>
+          </div>
+          
+          <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+            <div style="font-size: 0.9rem; opacity: 0.9;">Approval Rate</div>
+            <div style="font-size: 2.5rem; font-weight: bold; margin: 10px 0;">${metrics.approvalRate}%</div>
+            <div style="font-size: 0.85rem; opacity: 0.8;">Of total journal entries approved</div>
+          </div>
+          
+          <div style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+            <div style="font-size: 0.9rem; opacity: 0.9;">Approved Entries</div>
+            <div style="font-size: 2.5rem; font-weight: bold; margin: 10px 0;">${journalEntries.approved}</div>
+            <div style="font-size: 0.85rem; opacity: 0.8;">Total approved in period</div>
+          </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px;">
+          <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; border-left: 4px solid #667eea;">
+            <div style="font-size: 0.8rem; color: #666;">Submitted</div>
+            <div style="font-size: 1.8rem; font-weight: bold; color: #667eea;">${journalEntries.submitted}</div>
+          </div>
+          <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; border-left: 4px solid #43e97b;">
+            <div style="font-size: 0.8rem; color: #666;">Approved</div>
+            <div style="font-size: 1.8rem; font-weight: bold; color: #43e97b;">${journalEntries.approved}</div>
+          </div>
+          <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; border-left: 4px solid #f5576c;">
+            <div style="font-size: 0.8rem; color: #666;">Posted</div>
+            <div style="font-size: 1.8rem; font-weight: bold; color: #f5576c;">${journalEntries.posted}</div>
+          </div>
+          <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; border-left: 4px solid #ffa502;">
+            <div style="font-size: 0.8rem; color: #666;">Draft</div>
+            <div style="font-size: 1.8rem; font-weight: bold; color: #ffa502;">${journalEntries.draft}</div>
+          </div>
+        </div>
+      `;
+      
+      kpiContainer.innerHTML = kpiHtml;
+    })
+    .catch(err => {
+      console.error("Error loading KPIs:", err);
+      if (document.getElementById("kpiMetrics")) {
+        document.getElementById("kpiMetrics").innerHTML = "<p style='color: red;'>Error loading KPI data</p>";
+      }
+    });
+}
+
+// ==================== FINANCE MANAGER: PENDING APPROVALS ====================
+function loadPendingApprovals() {
+  fetch(`${API_URL}/approvals/journal/pending`, {
+    headers: {
+      "user-id": "manager-001"
+    }
+  })
+    .then(res => res.json())
+    .then(data => {
+      const pendingContainer = document.getElementById("pendingApprovalsBody");
+      const pendingTable = document.getElementById("pendingApprovalsTable");
+      const message = document.getElementById("pendingApprovalsMessage");
+      
+      if (!Array.isArray(data.entries) || data.entries.length === 0) {
+        if (pendingTable) pendingTable.style.display = "none";
+        if (message) message.textContent = "No pending approvals";
+        return;
+      }
+      
+      if (pendingTable) pendingTable.style.display = "table";
+      if (message) message.textContent = "";
+      if (pendingContainer) pendingContainer.innerHTML = "";
+      
+      data.entries.forEach(entry => {
+        const submittedDate = entry.submittedAt ? new Date(entry.submittedAt).toLocaleDateString() : "N/A";
+        const submitterName = entry.submittedBy?.username || "Unknown";
+        
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${entry.period || "N/A"}</td>
+          <td>${entry.account || "N/A"}</td>
+          <td>$${(entry.debit || 0).toFixed(2)}</td>
+          <td>$${(entry.credit || 0).toFixed(2)}</td>
+          <td>${entry.description || "N/A"}</td>
+          <td>${submittedDate}</td>
+          <td>${submitterName}</td>
+          <td>
+            <button class="btn btn-success btn-sm" onclick="approveJournalEntry('${entry._id}')" style="margin-right: 5px;"><i class="fas fa-check"></i> Approve</button>
+            <button class="btn btn-danger btn-sm" onclick="rejectJournalEntry('${entry._id}')" style="margin-right: 5px;"><i class="fas fa-times"></i> Reject</button>
+            <button class="btn btn-info btn-sm" onclick="viewEntryDetails('${entry._id}')"><i class="fas fa-eye"></i> View</button>
+          </td>
+        `;
+        pendingContainer.appendChild(row);
+      });
+    })
+    .catch(err => {
+      console.error("Error loading pending approvals:", err);
+      if (document.getElementById("pendingApprovalsMessage")) {
+        document.getElementById("pendingApprovalsMessage").textContent = "Error loading pending approvals";
+      }
+    });
+}
+
+// ==================== APPROVE JOURNAL ENTRY ====================
+function approveJournalEntry(entryId) {
+  const comments = prompt("Enter approval comments (optional):");
+  
+  fetch(`${API_URL}/approvals/journal/${entryId}/approve`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "user-id": "manager-001"
+    },
+    body: JSON.stringify({ reviewerComments: comments || "" })
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.message) {
+        alert("Journal entry approved successfully!");
+        loadPendingApprovals();
+        loadDashboardKPIs();
+      } else {
+        alert("Error: " + (data.error || "Failed to approve entry"));
+      }
+    })
+    .catch(err => {
+      console.error("Error approving entry:", err);
+      alert("Error approving journal entry");
+    });
+}
+
+// ==================== REJECT JOURNAL ENTRY ====================
+function rejectJournalEntry(entryId) {
+  const reason = prompt("Enter rejection reason (required):");
+  
+  if (!reason) {
+    alert("Rejection reason is required");
+    return;
+  }
+  
+  fetch(`${API_URL}/approvals/journal/${entryId}/reject`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "user-id": "manager-001"
+    },
+    body: JSON.stringify({ reviewerComments: reason })
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.message) {
+        alert("Journal entry rejected and returned to draft");
+        loadPendingApprovals();
+        loadDashboardKPIs();
+      } else {
+        alert("Error: " + (data.error || "Failed to reject entry"));
+      }
+    })
+    .catch(err => {
+      console.error("Error rejecting entry:", err);
+      alert("Error rejecting journal entry");
+    });
+}
+
+// ==================== VIEW ENTRY DETAILS ====================
+function viewEntryDetails(entryId) {
+  fetch(`${API_URL}/journals/${entryId}`, {
+    headers: {
+      "user-id": "manager-001"
+    }
+  })
+    .then(res => res.json())
+    .then(data => {
+      const details = `
+        Account: ${data.account}
+        Period: ${data.period}
+        Debit: $${(data.debit || 0).toFixed(2)}
+        Credit: $${(data.credit || 0).toFixed(2)}
+        Description: ${data.description || "N/A"}
+        Comments: ${data.comments || "N/A"}
+        Status: ${data.status}
+        Submitted By: ${data.submittedBy?.username || "N/A"}
+        Submitted At: ${data.submittedAt ? new Date(data.submittedAt).toLocaleString() : "N/A"}
+      `;
+      alert(details);
+    })
+    .catch(err => {
+      console.error("Error viewing entry:", err);
+      alert("Error loading entry details");
+    });
+}
+
+// ==================== EDIT JOURNAL ENTRY ====================
+function editJournalEntry(entryId) {
+  fetch(`${API_URL}/journals/${entryId}`, {
+    headers: {
+      "user-id": "accountant-001"
+    }
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.status !== "DRAFT") {
+        alert("Only draft entries can be edited");
+        return;
+      }
+      
+      document.getElementById("journalPeriod").value = data.period || "";
+      document.getElementById("journalAccount").value = data.account || "";
+      document.getElementById("journalDebit").value = data.debit || "";
+      document.getElementById("journalCredit").value = data.credit || "";
+      document.getElementById("journalDescription").value = data.description || "";
+      currentEditId = entryId;
+      
+      // Scroll to form
+      document.getElementById("journalContent").scrollIntoView({ behavior: "smooth" });
+      alert("Edit mode - Update the entry and save");
+    })
+    .catch(err => {
+      console.error("Error loading entry:", err);
+      alert("Error loading entry for editing");
+    });
+}
+
+// ==================== SHOW DISCREPANCIES SECTION ====================
+function showDiscrepanciesSection(reconciliationId, bankBalance, bookBalance) {
+  const discrepanciesSection = document.getElementById("discrepanciesSection");
+  if (!discrepanciesSection) {
+    console.warn("Discrepancies section not found in HTML");
+    return;
+  }
+  
+  // Store reconciliation ID for use in addDiscrepancy
+  window.currentReconciliationId = reconciliationId;
+  
+  // Clear previous discrepancies
+  document.getElementById("discrepancyType").value = "";
+  document.getElementById("discrepancyDescription").value = "";
+  document.getElementById("discrepancyAmount").value = "";
+  document.getElementById("discrepancySuccess").textContent = "";
+  document.getElementById("discrepancyError").textContent = "";
+  
+  // Show the section
+  discrepanciesSection.style.display = "block";
+  
+  // Scroll to section
+  setTimeout(() => {
+    discrepanciesSection.scrollIntoView({ behavior: "smooth" });
+  }, 100);
 }

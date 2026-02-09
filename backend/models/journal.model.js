@@ -27,15 +27,9 @@ const journalSchema = new mongoose.Schema(
       default: "DRAFT",
       index: true
     },
-    submittedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User"
-    },
+    submittedBy: String,
     submittedAt: Date,
-    approvedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User"
-    },
+    approvedBy: String,
     approvedAt: Date,
     attachments: [
       {

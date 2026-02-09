@@ -803,6 +803,46 @@
                     </div>
                 </div>
 
+                <!-- Finance Manager KPIs -->
+                <div class="module-section">
+                    <div class="section-header">
+                        <div class="section-title"><i class="fas fa-chart-line"></i> Finance Manager Dashboard</div>
+                        <div class="section-actions">
+                            <button class="btn btn-primary btn-sm" onclick="loadDashboardKPIs(); loadPendingApprovals();"><i class="fas fa-redo"></i> Refresh</button>
+                        </div>
+                    </div>
+                    
+                    <!-- KPI Metrics Container -->
+                    <div id="kpiMetrics" style="margin-bottom: 20px;">
+                        <p style="text-align: center; color: #999;">Loading KPI metrics...</p>
+                    </div>
+                    
+                    <!-- Pending Approvals Table -->
+                    <div class="section-title" style="margin-top: 30px;"><i class="fas fa-hourglass-half"></i> Pending Journal Entry Approvals</div>
+                    <div class="section-actions" style="margin-top: -35px;">
+                        <button class="btn btn-primary btn-sm" onclick="loadPendingApprovals()"><i class="fas fa-redo"></i> Refresh</button>
+                    </div>
+                    
+                    <div class="table-container" style="margin-top: 10px;">
+                        <table id="pendingApprovalsTable" style="display:none;">
+                            <thead>
+                                <tr>
+                                    <th>Period</th>
+                                    <th>Account</th>
+                                    <th>Debit</th>
+                                    <th>Credit</th>
+                                    <th>Description</th>
+                                    <th>Submitted</th>
+                                    <th>Submitted By</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pendingApprovalsBody"></tbody>
+                        </table>
+                        <div id="pendingApprovalsMessage" class="empty-state">No pending approvals</div>
+                    </div>
+                </div>
+
                 <div class="module-section">
                     <div class="section-header">
                         <div class="section-title"><i class="fas fa-plus-circle"></i> Create Invoice</div>
