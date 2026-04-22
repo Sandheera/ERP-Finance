@@ -1,16 +1,7 @@
 let currentEditId = null;
 const API_URL = 'http://localhost:5000/api';
 
-// Navbar navigation
-document.querySelectorAll('.menu-link').forEach(link => {
-  link.addEventListener('click', (e) => {
-    e.preventDefault();
-    const page = e.target.closest('a').getAttribute('data-page');
-    showPage(page);
-    document.querySelectorAll('.menu-link').forEach(l => l.classList.remove('active'));
-    e.target.closest('a').classList.add('active');
-  });
-});
+// Navbar navigation will be set up on DOMContentLoaded
 
 function showPage(page) {
   document.querySelectorAll('.page-content').forEach(content => {
@@ -23,6 +14,8 @@ function showPage(page) {
   
   const titles = {
     'dashboard': 'Finance Dashboard',
+    'journal': 'Journal Entries',
+    'reconciliation': 'Bank Reconciliation',
     'invoices': 'Invoice Management',
     'reports': 'Financial Reports',
     'audit': 'Activity Log',
@@ -30,8 +23,24 @@ function showPage(page) {
   };
   document.getElementById('pageTitle').textContent = titles[page] || 'Finance Module';
 
-  if (page === 'invoices') loadInvoices();
-  if (page === 'audit') loadActivityLog();
+  // Load data based on page
+  if (page === 'dashboard') {
+    loadDashboardKPIs();
+    loadPendingApprovals();
+  }
+  if (page === 'journal') {
+    loadDraftJournalEntries();
+    loadSubmittedJournalEntries();
+  }
+  if (page === 'reconciliation') {
+    loadReconciliations();
+  }
+  if (page === 'invoices') {
+    loadInvoices();
+  }
+  if (page === 'audit') {
+    loadActivityLog();
+  }
 }
 
 function createInvoice() {
@@ -1227,3 +1236,24 @@ function showDiscrepanciesSection(reconciliationId, bankBalance, bookBalance) {
     discrepanciesSection.scrollIntoView({ behavior: "smooth" });
   }, 100);
 }
+
+// ==================== PAGE INITIALIZATION ====================
+// Initialize dashboard when page loads
+document.addEventListener('DOMContentLoaded', function() {
+  // Load initial dashboard data
+  loadDashboardKPIs();
+  loadPendingApprovals();
+  
+  // Set up menu navigation
+  document.querySelectorAll('.menu-link').forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      const page = e.target.closest('a').getAttribute('data-page');
+      showPage(page);
+      document.querySelectorAll('.menu-link').forEach(l => l.classList.remove('active'));
+      e.target.closest('a').classList.add('active');
+    });
+  });
+  
+  console.log("✅ ERP Finance Dashboard initialized successfully");
+});
